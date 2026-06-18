@@ -1,0 +1,31 @@
+# ── session data must never enter this public repo ──────────────────
+# L0 raw / L1 derived / L2 index artifacts are content; they live elsewhere.
+*.jsonl
+*.jsonl.gz
+*.db
+*.sqlite
+*.sqlite3
+*.onnx
+data/
+index/
+l0/
+l1/
+l2/
+
+# ── Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ── editor / OS ─────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
