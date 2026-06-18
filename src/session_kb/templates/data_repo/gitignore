@@ -1,0 +1,16 @@
+# L2 index is derived & disposable — rebuilt from l1/, never committed.
+*.db
+*.sqlite
+*.sqlite3
+index/
+l2/
+
+# raw transcripts must NEVER land here (they live encrypted in L0, out of band)
+*.gz
+raw/
+l0/
+
+# tooling / OS
+__pycache__/
+*.py[cod]
+.DS_Store

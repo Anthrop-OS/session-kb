@@ -33,9 +33,16 @@ src/session_kb/
   index.py             sqlite FTS5 + vec build (L2 = f(L1))
   ingest.py            idempotent batch pipeline
   search.py            session-search CLI (RRF)
+  init.py              session-kb-init: scaffold an L1 data repo from template
+  templates/data_repo/ canonical skeleton for the private L1 data repo
 docs/SCHEMA.md         the record contract
 tests/                 synthetic fixtures only
 ```
+
+The tool repo owns the schema and layer model, so it also owns the **data-repo
+template** (`templates/data_repo/`). `session-kb-init <dir>` materializes it —
+this is how a new node/agent gets a consistent private L1 data repo. The data
+repo itself never holds tool code; this repo never holds session content.
 
 ## Conventions
 

@@ -17,6 +17,7 @@ dev = ["pytest", "ruff"]
 [project.scripts]
 session-search = "session_kb.search:main"
 session-ingest = "session_kb.ingest:main"
+session-kb-init = "session_kb.init:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -24,6 +25,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/session_kb"]
+
+# Ship the data-repo template (incl. dotfiles / .gitkeep) so session-kb-init works
+# from a wheel install, not only from source.
+[tool.hatch.build.targets.wheel.force-include]
+"src/session_kb/templates" = "session_kb/templates"
 
 [tool.ruff]
 line-length = 100

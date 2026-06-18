@@ -29,3 +29,7 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# ── exception: the data-repo template is tool code, not data ─────────
+!src/session_kb/templates/data_repo/l1/
+!src/session_kb/templates/data_repo/l1/.gitkeep
