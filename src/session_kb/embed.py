@@ -7,6 +7,8 @@ embedding a query string at search time.
 
 from __future__ import annotations
 
+import hashlib
+
 from .schema import EmbeddingRecord
 
 MODEL = "minilm-v2"
@@ -17,5 +19,15 @@ def embed(text: str) -> list[float]:
     raise NotImplementedError("milestone: embedding (llm-embed-onnx wrapper)")
 
 
-def embed_chunk(chunk_id: str, text: str) -> EmbeddingRecord:
-    return EmbeddingRecord(chunk_id=chunk_id, model=MODEL, dim=DIM, vec=embed(text))
+def content_hash(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def embed_chunk(exchange_id: str, text: str) -> EmbeddingRecord:
+    return EmbeddingRecord(
+        exchange_id=exchange_id,
+        model=MODEL,
+        dim=DIM,
+        embedding=embed(text),
+        content_hash=content_hash(text),
+    )
