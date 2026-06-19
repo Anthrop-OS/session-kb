@@ -5,6 +5,12 @@ A connector's only job is to map a native transcript onto these records; every
 downstream stage (chunker / embed / index / search) reads ONLY this schema and
 never branches on the source harness.
 
+These are Pydantic v2 models so the contract is enforced (connectors validate at
+the boundary) and exportable as language-neutral JSON Schema (``model_json_schema``
+→ ``docs/schema/*.json``), so a non-Python connector can validate against the same
+contract. ``model_config`` forbids extra keys: an unknown field is a connector bug,
+not silently dropped data.
+
 Layering note
 -------------
 Agnosticism applies at this (derived / L1) layer only. The raw L0 layer keeps
@@ -42,8 +48,9 @@ NOT read ``ext``; if a stage needs a field, promote it to the core (nullable).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = "1"
 
@@ -51,43 +58,52 @@ Actor = Literal["user", "agent", "tool"]
 EmbedSource = Literal["raw", "summary"]
 
 
-@dataclass
-class Source:
-    harness: str  # the tool/app, e.g. "claude-code" (our axis; no OTel equivalent)
+class _Record(BaseModel):
+    """Base for all canonical records: extra keys are a contract violation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Source(_Record):
+    harness: str = Field(
+        description="the tool/app, e.g. 'claude-code' (our axis; no OTel equivalent)"
+    )
     connector_version: str
-    provider: str | None = None  # model vendor, e.g. "anthropic" ~ gen_ai.provider.name
-    model: str | None = None  # ~ gen_ai.request.model
+    provider: str | None = Field(
+        default=None, description="model vendor, e.g. 'anthropic' ~ gen_ai.provider.name"
+    )
+    model: str | None = Field(default=None, description="~ gen_ai.request.model")
 
 
-@dataclass
-class RawPtr:
+class RawPtr(_Record):
     """Pointer into the encrypted L0 raw layer for full-fidelity recovery.
 
     ``uuids`` is the primary anchor: native message ids survive file rewrites,
     line numbers do not. ``span`` is a best-effort line range for convenience.
     """
 
-    uuids: list[str] = field(default_factory=list)
-    span: tuple[int, int] | None = None
+    uuids: list[str] = Field(
+        default_factory=list, description="primary L0 anchor; native message ids"
+    )
+    span: tuple[int, int] | None = Field(default=None, description="best-effort line range")
 
 
-@dataclass
-class TurnRecord:
+class TurnRecord(_Record):
     """One message. ``message`` is scrubbed verbatim and is the FTS5 source."""
 
     session_id: str
-    seq: int  # monotonic per session; the stable record-ordering key
-    exchange_id: str  # groups messages into one embedding unit (the chunk key)
+    seq: int = Field(description="monotonic per session; the stable record-ordering key")
+    exchange_id: str = Field(description="groups messages into one embedding unit (the chunk key)")
     actor: Actor
-    message: str  # scrubbed verbatim text
+    message: str = Field(description="scrubbed verbatim text")
     source: Source
     raw_ptr: RawPtr
-    ts: str  # ISO-8601
+    ts: str = Field(description="ISO-8601 timestamp")
 
     # threading / context (common-ish; nullable, populated when the harness has it)
-    parent_id: str | None = None  # normalized threading pointer (DAG)
-    cwd: str | None = None  # scrubbed of any home prefix
-    project: str | None = None  # repo / project slug
+    parent_id: str | None = Field(default=None, description="normalized threading pointer (DAG)")
+    cwd: str | None = Field(default=None, description="scrubbed of any home prefix")
+    project: str | None = Field(default=None, description="repo / project slug")
     git_branch: str | None = None
     lang: str | None = None
 
@@ -97,25 +113,30 @@ class TurnRecord:
 
     # tool correlation: agent records carry the calls; a tool record names the
     # call it answers via ``tool_call_id`` (paired by id, per the converging shape)
-    tool_calls: list[dict[str, Any]] = field(default_factory=list)  # {id, name, arguments}
-    tool_call_id: str | None = None
+    tool_calls: list[dict[str, Any]] = Field(
+        default_factory=list, description="{id, name, arguments} per call"
+    )
+    tool_call_id: str | None = Field(
+        default=None, description="set on actor=tool; names the call answered"
+    )
 
-    files_touched: list[str] = field(default_factory=list)
-    decisions: list[str] = field(default_factory=list)  # enrichment; empty in MVP
-    topics: list[str] = field(default_factory=list)  # enrichment; empty in MVP
+    files_touched: list[str] = Field(default_factory=list)
+    decisions: list[str] = Field(default_factory=list, description="enrichment; empty in MVP")
+    topics: list[str] = Field(default_factory=list, description="enrichment; empty in MVP")
 
     redacted: bool = False
     scrub_rules_version: str | None = None
 
     # harness-specific fidelity, keyed by harness kind. Downstream MUST NOT read.
-    ext: dict[str, Any] = field(default_factory=dict)
+    ext: dict[str, Any] = Field(
+        default_factory=dict, description="harness-keyed native fidelity; downstream MUST NOT read"
+    )
 
     record_type: Literal["turn"] = "turn"
     schema_version: str = SCHEMA_VERSION
 
 
-@dataclass
-class ChunkRecord:
+class ChunkRecord(_Record):
     """One exchange = the embedding unit. Records what text was embedded.
 
     For exchanges within the token cap, ``embed_source="raw"`` and the embedded
@@ -127,31 +148,32 @@ class ChunkRecord:
     exchange_id: str
     session_id: str
     embed_source: EmbedSource
-    content_hash: str  # sha256 of the exact embedded text; ties to EmbeddingRecord
-    summary: str | None = None  # set iff embed_source == "summary"
+    content_hash: str = Field(
+        description="sha256 of the exact embedded text; ties to EmbeddingRecord"
+    )
+    summary: str | None = Field(default=None, description="set iff embed_source == 'summary'")
     record_type: Literal["chunk"] = "chunk"
     schema_version: str = SCHEMA_VERSION
 
 
-@dataclass
-class EmbeddingRecord:
+class EmbeddingRecord(_Record):
     """One vector per exchange. Kept separate so re-embedding never churns text."""
 
     exchange_id: str
     model: str
     dim: int
     embedding: list[float]
-    content_hash: str  # must match the ChunkRecord; rebuild-verification anchor
+    content_hash: str = Field(description="must match the ChunkRecord; rebuild-verification anchor")
     record_type: Literal["embedding"] = "embedding"
     schema_version: str = SCHEMA_VERSION
 
 
-@dataclass
-class ClaudeCodeExt:
-    """Documentation of the ``ext["claude_code"]`` payload (native fidelity).
+class ClaudeCodeExt(_Record):
+    """Documents the ``ext["claude_code"]`` payload (native fidelity).
 
     Carried for re-derivation / debugging only — never on the retrieval hot path.
-    Stored as a plain dict under ``TurnRecord.ext["claude_code"]``.
+    Stored as a plain dict under ``TurnRecord.ext["claude_code"]``; this model
+    exists to document and (optionally) validate that payload.
     """
 
     parent_uuid: str | None = None
@@ -160,3 +182,17 @@ class ClaudeCodeExt:
     request_id: str | None = None
     version: str | None = None
     tool_use_result: Any | None = None
+
+
+#: The record models whose JSON Schema is exported as the language-neutral contract.
+EXPORTED_MODELS: dict[str, type[_Record]] = {
+    "turn": TurnRecord,
+    "chunk": ChunkRecord,
+    "embedding": EmbeddingRecord,
+    "claude_code_ext": ClaudeCodeExt,
+}
+
+
+def json_schemas() -> dict[str, dict[str, Any]]:
+    """Return the JSON Schema for every exported record model, keyed by name."""
+    return {name: model.model_json_schema() for name, model in EXPORTED_MODELS.items()}

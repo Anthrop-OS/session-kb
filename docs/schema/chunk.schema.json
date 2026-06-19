@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "description": "One exchange = the embedding unit. Records what text was embedded.\n\nFor exchanges within the token cap, ``embed_source=\"raw\"`` and the embedded\ntext is the concatenated verbatim turns (``summary`` is None). For larger\nexchanges, ``embed_source=\"summary\"`` and ``summary`` holds the persisted\nLLM summary that was embedded \u2014 persisted so rebuilds never re-run inference.",
+  "properties": {
+    "content_hash": {
+      "description": "sha256 of the exact embedded text; ties to EmbeddingRecord",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "embed_source": {
+      "enum": [
+        "raw",
+        "summary"
+      ],
+      "title": "Embed Source",
+      "type": "string"
+    },
+    "exchange_id": {
+      "title": "Exchange Id",
+      "type": "string"
+    },
+    "record_type": {
+      "const": "chunk",
+      "default": "chunk",
+      "title": "Record Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "set iff embed_source == 'summary'",
+      "title": "Summary"
+    }
+  },
+  "required": [
+    "exchange_id",
+    "session_id",
+    "embed_source",
+    "content_hash"
+  ],
+  "title": "ChunkRecord",
+  "type": "object"
+}

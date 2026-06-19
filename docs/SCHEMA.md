@@ -5,6 +5,18 @@ between connectors and the rest of the pipeline: a connector maps a native
 transcript onto these records, and every downstream stage (chunker / embed /
 index / search) reads only this schema — never the source harness.
 
+## Source of truth
+
+The contract is defined as Pydantic v2 models in
+[`src/session_kb/schema.py`](../src/session_kb/schema.py) and exported to
+language-neutral **JSON Schema** under [`docs/schema/`](schema/) — so a non-Python
+connector validates against the same contract. The models reject unknown keys
+(`extra="forbid"`): an unrecognized field is a connector bug, not silently dropped
+data. Regenerate the JSON Schema after any model change with
+`python scripts/gen_schema.py`; a CI drift-guard test fails if the committed files
+fall out of sync. The JSONC blocks below are illustrative — the models and the
+generated JSON Schema are authoritative.
+
 ## Where "agnostic" applies
 
 | Layer | Agnostic? | Form |
