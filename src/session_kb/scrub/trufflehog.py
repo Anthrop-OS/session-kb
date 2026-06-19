@@ -27,7 +27,10 @@ class TrufflehogScrubProvider:
             return []
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, dir=tempfile.gettempdir(),
+            mode="w",
+            suffix=".txt",
+            delete=False,
+            dir=tempfile.gettempdir(),
         ) as tmp:
             tmp.write(text)
             tmp_path = tmp.name
@@ -38,7 +41,10 @@ class TrufflehogScrubProvider:
                 cmd.extend(["--config", self._config])
 
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             findings: list[Finding] = []
             # trufflehog emits NDJSON (one object per line), not a JSON array
@@ -55,12 +61,14 @@ class TrufflehogScrubProvider:
                 idx = text.find(raw)
                 if idx == -1:
                     continue
-                findings.append(Finding(
-                    start=idx,
-                    end=idx + len(raw),
-                    type=f"trufflehog:{r.get('DetectorName', 'unknown')}",
-                    value=raw,
-                ))
+                findings.append(
+                    Finding(
+                        start=idx,
+                        end=idx + len(raw),
+                        type=f"trufflehog:{r.get('DetectorName', 'unknown')}",
+                        value=raw,
+                    )
+                )
             return findings
         except (subprocess.TimeoutExpired, OSError):
             return []

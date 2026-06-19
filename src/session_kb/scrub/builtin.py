@@ -21,7 +21,10 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("github-oauth", re.compile(r"gho_[A-Za-z0-9]{36,}")),
     ("github-app-token", re.compile(r"(?:ghu|ghs)_[A-Za-z0-9]{36,}")),
     ("github-refresh-token", re.compile(r"ghr_[A-Za-z0-9]{36,}")),
-    ("generic-api-key", re.compile(r"(?:sk|api|key|token|secret|password)[-_](?:[a-z]+[-_])*[A-Za-z0-9]{32,}")),
+    (
+        "generic-api-key",
+        re.compile(r"(?:sk|api|key|token|secret|password)[-_](?:[a-z]+[-_])*[A-Za-z0-9]{32,}"),
+    ),
     ("slack-token", re.compile(r"xox[bpors]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*")),
     ("jwt", re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
     ("pem-private-key", re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----")),
@@ -58,22 +61,33 @@ class BuiltinScrubProvider:
                 span = (m.start(), m.end())
                 if span not in seen_spans:
                     seen_spans.add(span)
-                    findings.append(Finding(
-                        start=m.start(), end=m.end(),
-                        type=rule_id, value=m.group(),
-                    ))
+                    findings.append(
+                        Finding(
+                            start=m.start(),
+                            end=m.end(),
+                            type=rule_id,
+                            value=m.group(),
+                        )
+                    )
 
         for m in _HIGH_ENTROPY_RE.finditer(text):
             span = (m.start(), m.end())
             if span in seen_spans:
                 continue
             candidate = m.group()
-            if len(candidate) >= _ENTROPY_MIN_LEN and _shannon_entropy(candidate) >= _ENTROPY_THRESHOLD:
+            if (
+                len(candidate) >= _ENTROPY_MIN_LEN
+                and _shannon_entropy(candidate) >= _ENTROPY_THRESHOLD
+            ):
                 seen_spans.add(span)
-                findings.append(Finding(
-                    start=m.start(), end=m.end(),
-                    type="high-entropy", value=candidate,
-                ))
+                findings.append(
+                    Finding(
+                        start=m.start(),
+                        end=m.end(),
+                        type="high-entropy",
+                        value=candidate,
+                    )
+                )
 
         return findings
 

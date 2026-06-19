@@ -32,16 +32,23 @@ class GitleaksScrubProvider:
 
         try:
             cmd = [
-                "gitleaks", "dir", tmp_path,
+                "gitleaks",
+                "dir",
+                tmp_path,
                 "--no-git",
-                "--report-format", "json",
-                "--report-path", "/dev/stdout",
+                "--report-format",
+                "json",
+                "--report-path",
+                "/dev/stdout",
             ]
             if self._config:
                 cmd.extend(["--config", self._config])
 
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             # gitleaks exits 1 when findings exist, 0 when clean
             output = result.stdout.strip()
@@ -55,12 +62,14 @@ class GitleaksScrubProvider:
                 idx = text.find(secret)
                 if idx == -1:
                     continue
-                findings.append(Finding(
-                    start=idx,
-                    end=idx + len(secret),
-                    type=f"gitleaks:{r.get('RuleID', 'unknown')}",
-                    value=secret,
-                ))
+                findings.append(
+                    Finding(
+                        start=idx,
+                        end=idx + len(secret),
+                        type=f"gitleaks:{r.get('RuleID', 'unknown')}",
+                        value=secret,
+                    )
+                )
             return findings
         except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
             return []

@@ -200,11 +200,13 @@ class TestExtraPatterns:
         from session_kb.scrub.patterns import ExtraPatternsScrubProvider
 
         patterns_file = tmp_path / "patterns.yaml"
-        patterns_file.write_text(textwrap.dedent("""\
+        patterns_file.write_text(
+            textwrap.dedent("""\
             patterns:
               - id: synth-internal
                 regex: "SYNTH_INTERNAL_[A-Z]{10}"
-        """))
+        """)
+        )
 
         provider = ExtraPatternsScrubProvider(patterns_file)
         findings = provider.scan("key = SYNTH_INTERNAL_ABCDEFGHIJ")
@@ -227,17 +229,23 @@ class TestExtraPatterns:
         from session_kb.scrub.patterns import ExtraPatternsScrubProvider
 
         patterns_file = tmp_path / "patterns.yaml"
-        patterns_file.write_text(textwrap.dedent("""\
+        patterns_file.write_text(
+            textwrap.dedent("""\
             patterns:
               - id: private-svc
                 regex: "svc_tok_[a-f0-9]{32}"
-        """))
+        """)
+        )
 
-        comp = CompositeScrubProvider([
-            BuiltinScrubProvider(),
-            ExtraPatternsScrubProvider(patterns_file),
-        ])
-        text = "svc_tok_deadbeef1234567890abcdef12345678 and ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"
+        comp = CompositeScrubProvider(
+            [
+                BuiltinScrubProvider(),
+                ExtraPatternsScrubProvider(patterns_file),
+            ]
+        )
+        text = (
+            "svc_tok_deadbeef1234567890abcdef12345678 and ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"
+        )
         findings = comp.scan(text)
         types = {f.type for f in findings}
         assert "extra:private-svc" in types
