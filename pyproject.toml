@@ -6,6 +6,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
+    "pydantic>=2",
     "llm",
     "llm-embed-onnx",
     "sqlite-vec",

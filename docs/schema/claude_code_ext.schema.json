@@ -1,0 +1,78 @@
+{
+  "additionalProperties": false,
+  "description": "Documents the ``ext[\"claude_code\"]`` payload (native fidelity).\n\nCarried for re-derivation / debugging only \u2014 never on the retrieval hot path.\nStored as a plain dict under ``TurnRecord.ext[\"claude_code\"]``; this model\nexists to document and (optionally) validate that payload.",
+  "properties": {
+    "is_meta": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Is Meta"
+    },
+    "is_sidechain": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Is Sidechain"
+    },
+    "parent_uuid": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Uuid"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Id"
+    },
+    "tool_use_result": {
+      "anyOf": [
+        {},
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool Use Result"
+    },
+    "version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Version"
+    }
+  },
+  "title": "ClaudeCodeExt",
+  "type": "object"
+}

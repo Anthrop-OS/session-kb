@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "description": "One vector per exchange. Kept separate so re-embedding never churns text.",
+  "properties": {
+    "content_hash": {
+      "description": "must match the ChunkRecord; rebuild-verification anchor",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "dim": {
+      "title": "Dim",
+      "type": "integer"
+    },
+    "embedding": {
+      "items": {
+        "type": "number"
+      },
+      "title": "Embedding",
+      "type": "array"
+    },
+    "exchange_id": {
+      "title": "Exchange Id",
+      "type": "string"
+    },
+    "model": {
+      "description": "the embedding model (distinct from Source.model, the LLM)",
+      "title": "Model",
+      "type": "string"
+    },
+    "record_type": {
+      "const": "embedding",
+      "default": "embedding",
+      "title": "Record Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "exchange_id",
+    "model",
+    "dim",
+    "embedding",
+    "content_hash"
+  ],
+  "title": "EmbeddingRecord",
+  "type": "object"
+}

@@ -1,0 +1,343 @@
+{
+  "$defs": {
+    "RawPtr": {
+      "additionalProperties": false,
+      "description": "Pointer into the encrypted L0 raw layer for full-fidelity recovery.\n\n``uuids`` is the primary anchor: native message ids survive file rewrites,\nline numbers do not. ``span`` is a best-effort line range for convenience.",
+      "properties": {
+        "span": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "best-effort line range",
+          "title": "Span"
+        },
+        "uuids": {
+          "description": "primary L0 anchor; native message ids",
+          "items": {
+            "type": "string"
+          },
+          "title": "Uuids",
+          "type": "array"
+        }
+      },
+      "title": "RawPtr",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "connector_version": {
+          "title": "Connector Version",
+          "type": "string"
+        },
+        "harness": {
+          "description": "the tool/app, e.g. 'claude-code' (our axis; no OTel equivalent)",
+          "title": "Harness",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the LLM, ~ gen_ai.request.model",
+          "title": "Model"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "model vendor, e.g. 'anthropic' ~ gen_ai.provider.name",
+          "title": "Provider"
+        }
+      },
+      "required": [
+        "harness",
+        "connector_version"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "ToolCall": {
+      "additionalProperties": false,
+      "description": "One tool invocation carried on an ``actor=\"agent\"`` turn.\n\nPaired to the answering ``actor=\"tool\"`` turn via ``id`` \u2194 ``tool_call_id``.\n``arguments`` stays open (tool-defined), but the envelope is typed so the\ncorrelation keys cannot silently drift.",
+      "properties": {
+        "arguments": {
+          "additionalProperties": true,
+          "description": "tool-defined payload",
+          "title": "Arguments",
+          "type": "object"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "ToolCall",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One message. ``message`` is scrubbed verbatim and is the FTS5 source.",
+  "properties": {
+    "actor": {
+      "enum": [
+        "user",
+        "agent",
+        "tool"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "content_hash": {
+      "description": "sha256 of the scrubbed message; turn-level re-derive / idempotency anchor",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "cwd": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "scrubbed of any home prefix",
+      "title": "Cwd"
+    },
+    "decisions": {
+      "description": "enrichment; empty in MVP",
+      "items": {
+        "type": "string"
+      },
+      "title": "Decisions",
+      "type": "array"
+    },
+    "exchange_id": {
+      "description": "groups messages into one embedding unit (the chunk key)",
+      "title": "Exchange Id",
+      "type": "string"
+    },
+    "ext": {
+      "additionalProperties": true,
+      "description": "harness-keyed native fidelity; downstream MUST NOT read",
+      "title": "Ext",
+      "type": "object"
+    },
+    "files_touched": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Files Touched",
+      "type": "array"
+    },
+    "git_branch": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Branch"
+    },
+    "input_tokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Input Tokens"
+    },
+    "lang": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lang"
+    },
+    "message": {
+      "description": "scrubbed verbatim text",
+      "title": "Message",
+      "type": "string"
+    },
+    "output_tokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Tokens"
+    },
+    "parent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "normalized threading pointer (DAG)",
+      "title": "Parent Id"
+    },
+    "project": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "repo / project slug",
+      "title": "Project"
+    },
+    "raw_ptr": {
+      "$ref": "#/$defs/RawPtr"
+    },
+    "record_type": {
+      "const": "turn",
+      "default": "turn",
+      "title": "Record Type",
+      "type": "string"
+    },
+    "redacted": {
+      "default": false,
+      "title": "Redacted",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scrub_rules_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scrub Rules Version"
+    },
+    "seq": {
+      "description": "monotonic per session; the stable record-ordering key",
+      "title": "Seq",
+      "type": "integer"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "tool_call_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "set on actor=tool; names the call answered",
+      "title": "Tool Call Id"
+    },
+    "tool_calls": {
+      "description": "{id, name, arguments} per call (agent turns)",
+      "items": {
+        "$ref": "#/$defs/ToolCall"
+      },
+      "title": "Tool Calls",
+      "type": "array"
+    },
+    "topics": {
+      "description": "enrichment; empty in MVP",
+      "items": {
+        "type": "string"
+      },
+      "title": "Topics",
+      "type": "array"
+    },
+    "ts": {
+      "description": "ISO-8601, timezone-aware",
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "seq",
+    "exchange_id",
+    "actor",
+    "message",
+    "content_hash",
+    "source",
+    "raw_ptr",
+    "ts"
+  ],
+  "title": "TurnRecord",
+  "type": "object"
+}

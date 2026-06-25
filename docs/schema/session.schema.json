@@ -1,0 +1,226 @@
+{
+  "$defs": {
+    "RawPtr": {
+      "additionalProperties": false,
+      "description": "Pointer into the encrypted L0 raw layer for full-fidelity recovery.\n\n``uuids`` is the primary anchor: native message ids survive file rewrites,\nline numbers do not. ``span`` is a best-effort line range for convenience.",
+      "properties": {
+        "span": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "best-effort line range",
+          "title": "Span"
+        },
+        "uuids": {
+          "description": "primary L0 anchor; native message ids",
+          "items": {
+            "type": "string"
+          },
+          "title": "Uuids",
+          "type": "array"
+        }
+      },
+      "title": "RawPtr",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "connector_version": {
+          "title": "Connector Version",
+          "type": "string"
+        },
+        "harness": {
+          "description": "the tool/app, e.g. 'claude-code' (our axis; no OTel equivalent)",
+          "title": "Harness",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the LLM, ~ gen_ai.request.model",
+          "title": "Model"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "model vendor, e.g. 'anthropic' ~ gen_ai.provider.name",
+          "title": "Provider"
+        }
+      },
+      "required": [
+        "harness",
+        "connector_version"
+      ],
+      "title": "Source",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Session-level manifest \u2014 the system of record for session metadata.\n\nOne per session. The canonical ``host`` axis and workspace context live here\n(not repeated on every turn); ``TurnRecord``s join back via ``session_id``.\nAlso the home of the incremental ingest cursor, so per-host scheduling resumes\nfrom where it stopped without a separate state DB.",
+  "properties": {
+    "cursor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "L0 incremental anchor: last ingested native id",
+      "title": "Cursor"
+    },
+    "cwd": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "scrubbed of any home prefix",
+      "title": "Cwd"
+    },
+    "ended_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ISO-8601, timezone-aware; None while the session is open",
+      "format": "date-time",
+      "title": "Ended At"
+    },
+    "git_branch": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Branch"
+    },
+    "host": {
+      "description": "canonical host the session ran on (e.g. 'tp-server'); the analytics host axis",
+      "title": "Host",
+      "type": "string"
+    },
+    "project": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "repo / project slug",
+      "title": "Project"
+    },
+    "raw_ptr": {
+      "$ref": "#/$defs/RawPtr",
+      "description": "anchor to the L0 session file"
+    },
+    "record_type": {
+      "const": "session",
+      "default": "session",
+      "title": "Record Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "started_at": {
+      "description": "ISO-8601, timezone-aware; first turn's ts",
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "turn_count": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "turns ingested so far",
+      "title": "Turn Count"
+    },
+    "workspace": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "workspace root slug (host-relative), scrubbed of any home prefix",
+      "title": "Workspace"
+    }
+  },
+  "required": [
+    "session_id",
+    "host",
+    "source",
+    "started_at",
+    "raw_ptr"
+  ],
+  "title": "SessionRecord",
+  "type": "object"
+}
