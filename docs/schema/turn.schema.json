@@ -61,7 +61,7 @@
             }
           ],
           "default": null,
-          "description": "~ gen_ai.request.model",
+          "description": "the LLM, ~ gen_ai.request.model",
           "title": "Model"
         },
         "provider": {
@@ -84,6 +84,32 @@
       ],
       "title": "Source",
       "type": "object"
+    },
+    "ToolCall": {
+      "additionalProperties": false,
+      "description": "One tool invocation carried on an ``actor=\"agent\"`` turn.\n\nPaired to the answering ``actor=\"tool\"`` turn via ``id`` \u2194 ``tool_call_id``.\n``arguments`` stays open (tool-defined), but the envelope is typed so the\ncorrelation keys cannot silently drift.",
+      "properties": {
+        "arguments": {
+          "additionalProperties": true,
+          "description": "tool-defined payload",
+          "title": "Arguments",
+          "type": "object"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "ToolCall",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -96,6 +122,12 @@
         "tool"
       ],
       "title": "Actor",
+      "type": "string"
+    },
+    "content_hash": {
+      "description": "sha256 of the scrubbed message; turn-level re-derive / idempotency anchor",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Hash",
       "type": "string"
     },
     "cwd": {
@@ -273,10 +305,9 @@
       "title": "Tool Call Id"
     },
     "tool_calls": {
-      "description": "{id, name, arguments} per call",
+      "description": "{id, name, arguments} per call (agent turns)",
       "items": {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/$defs/ToolCall"
       },
       "title": "Tool Calls",
       "type": "array"
@@ -290,7 +321,8 @@
       "type": "array"
     },
     "ts": {
-      "description": "ISO-8601 timestamp",
+      "description": "ISO-8601, timezone-aware",
+      "format": "date-time",
       "title": "Ts",
       "type": "string"
     }
@@ -301,6 +333,7 @@
     "exchange_id",
     "actor",
     "message",
+    "content_hash",
     "source",
     "raw_ptr",
     "ts"

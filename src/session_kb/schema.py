@@ -18,9 +18,16 @@ each harness's native format, full-fidelity and encrypted; ``raw_ptr`` resolves
 back into it. So these records do not need to be lossless — they are the
 searchable projection, not the system of record.
 
-Three record types, three grains (each serialized to its own jsonl so they stay
-independently git-diffable):
+Record types
+------------
+One session manifest plus three content grains (each serialized to its own jsonl
+so they stay independently git-diffable):
 
+- ``SessionRecord``   — one per session. The manifest: the canonical ``host``
+                        axis (analytics slice by host × workspace), workspace /
+                        project context, and the L0 incremental ingest cursor.
+                        Turns join back to it via ``session_id``; host/workspace
+                        are NOT repeated on every turn.
 - ``TurnRecord``      — one per message (user / agent / tool). Holds the scrubbed
                         verbatim text that FTS5 indexes.
 - ``ChunkRecord``     — one per exchange (the embedding unit). Records what text
@@ -28,6 +35,14 @@ independently git-diffable):
                         exchanges) so rebuilds need no inference.
 - ``EmbeddingRecord`` — one per exchange. The vector only, keyed by exchange_id +
                         content_hash, kept apart so re-embedding never churns text.
+
+Exchange boundary
+-----------------
+An *exchange* is the embedding/chunk unit: one user message and every agent / tool
+message that follows it, up to (but excluding) the next user message. The
+connector mints one ``exchange_id`` at each ``actor="user"`` boundary and stamps
+it onto all turns of that exchange. Connector and chunker MUST agree on this rule;
+it is the contract, not an implementation detail.
 
 Field-name alignment
 --------------------
@@ -48,14 +63,43 @@ NOT read ``ext``; if a stage needs a field, promote it to the core (nullable).
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from datetime import datetime
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = "1"
 
 Actor = Literal["user", "agent", "tool"]
 EmbedSource = Literal["raw", "summary"]
+
+#: content_hash convention: ``sha256:`` + lowercase hex digest. Encoded in the
+#: JSON Schema (``pattern``) so a non-Python connector validates the same shape.
+CONTENT_HASH_PATTERN = r"^sha256:[0-9a-f]{64}$"
+
+
+def _ensure_aware_iso8601(v: str) -> str:
+    """Reject non-ISO-8601 or timezone-naive timestamps.
+
+    Ordering keys off ``seq`` (not ``ts``), but DuckDB time-bucket analytics and
+    the 6h incremental window depend on ``ts`` being a parseable, unambiguous
+    instant — so format drift across connectors is a contract violation, caught
+    here rather than at query time.
+    """
+    try:
+        parsed = datetime.fromisoformat(v)
+    except ValueError as exc:  # not ISO-8601 at all
+        raise ValueError(f"timestamp is not ISO-8601: {v!r}") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"timestamp must be timezone-aware (got naive): {v!r}")
+    return v
+
+
+#: ISO-8601, timezone-aware. Carried as a string (the canonical wire form) with a
+#: parse+tz check; ``format: date-time`` is advertised in the exported JSON Schema.
+TimestampStr = Annotated[str, AfterValidator(_ensure_aware_iso8601)]
+
+_TS_SCHEMA = {"format": "date-time"}
 
 
 class _Record(BaseModel):
@@ -72,7 +116,7 @@ class Source(_Record):
     provider: str | None = Field(
         default=None, description="model vendor, e.g. 'anthropic' ~ gen_ai.provider.name"
     )
-    model: str | None = Field(default=None, description="~ gen_ai.request.model")
+    model: str | None = Field(default=None, description="the LLM, ~ gen_ai.request.model")
 
 
 class RawPtr(_Record):
@@ -88,6 +132,56 @@ class RawPtr(_Record):
     span: tuple[int, int] | None = Field(default=None, description="best-effort line range")
 
 
+class ToolCall(_Record):
+    """One tool invocation carried on an ``actor="agent"`` turn.
+
+    Paired to the answering ``actor="tool"`` turn via ``id`` ↔ ``tool_call_id``.
+    ``arguments`` stays open (tool-defined), but the envelope is typed so the
+    correlation keys cannot silently drift.
+    """
+
+    id: str
+    name: str
+    arguments: dict[str, Any] = Field(default_factory=dict, description="tool-defined payload")
+
+
+class SessionRecord(_Record):
+    """Session-level manifest — the system of record for session metadata.
+
+    One per session. The canonical ``host`` axis and workspace context live here
+    (not repeated on every turn); ``TurnRecord``s join back via ``session_id``.
+    Also the home of the incremental ingest cursor, so per-host scheduling resumes
+    from where it stopped without a separate state DB.
+    """
+
+    session_id: str
+    host: str = Field(
+        description="canonical host the session ran on (e.g. 'tp-server'); the analytics host axis"
+    )
+    source: Source
+    workspace: str | None = Field(
+        default=None, description="workspace root slug (host-relative), scrubbed of any home prefix"
+    )
+    cwd: str | None = Field(default=None, description="scrubbed of any home prefix")
+    project: str | None = Field(default=None, description="repo / project slug")
+    git_branch: str | None = None
+    started_at: TimestampStr = Field(
+        description="ISO-8601, timezone-aware; first turn's ts", json_schema_extra=_TS_SCHEMA
+    )
+    ended_at: TimestampStr | None = Field(
+        default=None,
+        description="ISO-8601, timezone-aware; None while the session is open",
+        json_schema_extra=_TS_SCHEMA,
+    )
+    turn_count: int | None = Field(default=None, description="turns ingested so far")
+    raw_ptr: RawPtr = Field(description="anchor to the L0 session file")
+    cursor: str | None = Field(
+        default=None, description="L0 incremental anchor: last ingested native id"
+    )
+    record_type: Literal["session"] = "session"
+    schema_version: str = SCHEMA_VERSION
+
+
 class TurnRecord(_Record):
     """One message. ``message`` is scrubbed verbatim and is the FTS5 source."""
 
@@ -96,9 +190,13 @@ class TurnRecord(_Record):
     exchange_id: str = Field(description="groups messages into one embedding unit (the chunk key)")
     actor: Actor
     message: str = Field(description="scrubbed verbatim text")
+    content_hash: str = Field(
+        pattern=CONTENT_HASH_PATTERN,
+        description="sha256 of the scrubbed message; turn-level re-derive / idempotency anchor",
+    )
     source: Source
     raw_ptr: RawPtr
-    ts: str = Field(description="ISO-8601 timestamp")
+    ts: TimestampStr = Field(description="ISO-8601, timezone-aware", json_schema_extra=_TS_SCHEMA)
 
     # threading / context (common-ish; nullable, populated when the harness has it)
     parent_id: str | None = Field(default=None, description="normalized threading pointer (DAG)")
@@ -113,8 +211,8 @@ class TurnRecord(_Record):
 
     # tool correlation: agent records carry the calls; a tool record names the
     # call it answers via ``tool_call_id`` (paired by id, per the converging shape)
-    tool_calls: list[dict[str, Any]] = Field(
-        default_factory=list, description="{id, name, arguments} per call"
+    tool_calls: list[ToolCall] = Field(
+        default_factory=list, description="{id, name, arguments} per call (agent turns)"
     )
     tool_call_id: str | None = Field(
         default=None, description="set on actor=tool; names the call answered"
@@ -149,7 +247,8 @@ class ChunkRecord(_Record):
     session_id: str
     embed_source: EmbedSource
     content_hash: str = Field(
-        description="sha256 of the exact embedded text; ties to EmbeddingRecord"
+        pattern=CONTENT_HASH_PATTERN,
+        description="sha256 of the exact embedded text; ties to EmbeddingRecord",
     )
     summary: str | None = Field(default=None, description="set iff embed_source == 'summary'")
     record_type: Literal["chunk"] = "chunk"
@@ -160,10 +259,13 @@ class EmbeddingRecord(_Record):
     """One vector per exchange. Kept separate so re-embedding never churns text."""
 
     exchange_id: str
-    model: str
+    model: str = Field(description="the embedding model (distinct from Source.model, the LLM)")
     dim: int
     embedding: list[float]
-    content_hash: str = Field(description="must match the ChunkRecord; rebuild-verification anchor")
+    content_hash: str = Field(
+        pattern=CONTENT_HASH_PATTERN,
+        description="must match the ChunkRecord; rebuild-verification anchor",
+    )
     record_type: Literal["embedding"] = "embedding"
     schema_version: str = SCHEMA_VERSION
 
@@ -186,6 +288,7 @@ class ClaudeCodeExt(_Record):
 
 #: The record models whose JSON Schema is exported as the language-neutral contract.
 EXPORTED_MODELS: dict[str, type[_Record]] = {
+    "session": SessionRecord,
     "turn": TurnRecord,
     "chunk": ChunkRecord,
     "embedding": EmbeddingRecord,

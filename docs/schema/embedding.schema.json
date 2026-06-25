@@ -4,6 +4,7 @@
   "properties": {
     "content_hash": {
       "description": "must match the ChunkRecord; rebuild-verification anchor",
+      "pattern": "^sha256:[0-9a-f]{64}$",
       "title": "Content Hash",
       "type": "string"
     },
@@ -23,6 +24,7 @@
       "type": "string"
     },
     "model": {
+      "description": "the embedding model (distinct from Source.model, the LLM)",
       "title": "Model",
       "type": "string"
     },

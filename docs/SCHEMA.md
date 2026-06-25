@@ -29,9 +29,41 @@ The derived layer does **not** need to be lossless: L0 is the system of record,
 and `raw_ptr` recovers the structured original. These records are the searchable
 *projection*.
 
-## Three record types (three grains)
+## Record types (a session manifest + three content grains)
 
 Each is serialized to its own jsonl file so they stay independently git-diffable.
+
+### `SessionRecord` — one per session (the manifest)
+
+The system of record for session metadata. The canonical **`host`** axis and
+workspace context live here — **not** repeated on every turn; `TurnRecord`s join
+back via `session_id`. This is also where the incremental ingest **cursor** lives,
+so per-host scheduling resumes without a separate state DB.
+
+```jsonc
+{
+  "record_type": "session",
+  "schema_version": "1",
+  "session_id": "synthetic-session",
+  "host": "tp-server",             // REQUIRED — the analytics host axis (host × workspace)
+  "source": { "harness": "claude-code", "provider": "anthropic",
+              "model": "...", "connector_version": "0.1.0" },
+  "workspace": "<repo>",           // workspace root slug (host-relative)
+  "cwd": "<repo>/sub/dir",
+  "project": "homelab-ops",
+  "git_branch": "main",
+  "started_at": "2026-06-18T20:50:00Z",  // ISO-8601, timezone-aware
+  "ended_at": null,                // null while the session is open
+  "turn_count": 42,
+  "raw_ptr": { "uuids": ["..."], "span": null },
+  "cursor": "<last-ingested native id>"  // L0 incremental anchor
+}
+```
+
+> **Host lives once, on the session.** To slice analytics by host (e.g. DuckDB
+> `host × workspace`), join turns to their session on `session_id` rather than
+> denormalizing `host` onto every turn — the session is the single source of
+> truth, so it cannot drift.
 
 ### `TurnRecord` — one per message
 
@@ -47,6 +79,7 @@ verbatim (never a summary) so full-text recall never degrades on long exchanges.
   "exchange_id": "synthetic-session:x7",  // groups messages into one embed unit
   "actor": "user|agent|tool",
   "message": "...scrubbed verbatim...",
+  "content_hash": "sha256:...",    // of the scrubbed message; re-derive/idempotency anchor
   "source": { "harness": "claude-code", "provider": "anthropic",
               "model": "...", "connector_version": "0.1.0" },
   "raw_ptr": { "uuids": ["..."], "span": [120, 124] },
@@ -138,6 +171,13 @@ block. It carries native fidelity not yet common across harnesses (Claude Code:
   property of the exchange (the embedding unit), not of any single message.
 - `redacted` + `scrub_rules_version` make the scrub auditable and re-runnable: a
   scrub-logic change means re-deriving from L0, never rewriting L1 in place.
+- `TurnRecord.content_hash` is the sha256 of the scrubbed message (`sha256:` +
+  64 lowercase hex, enforced in the JSON Schema). It lets a re-derive diff turns
+  against the prior pass instead of blindly rewriting every record.
+- Timestamps (`ts`, `started_at`, `ended_at`) are ISO-8601 **timezone-aware**
+  strings, validated at the boundary (naive or unparseable is a contract
+  violation) and advertised as `format: date-time` — so DuckDB time-bucket
+  queries and the 6h incremental window never trip over format drift.
 - **Schema evolution**: because `L1 = f(L0)`, a version bump is handled by
   re-deriving from L0, not by migrating records in place.
 - Field names track OpenTelemetry GenAI semantic conventions where they overlap
