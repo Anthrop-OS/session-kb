@@ -12,7 +12,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "pytest-cov", "ruff", "pyyaml"]
+yaml = ["pyyaml"]
 
 [project.scripts]
 session-search = "session_kb.search:main"
@@ -26,10 +27,19 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/session_kb"]
 
-# Ship the data-repo template (incl. dotfiles / .gitkeep) so session-kb-init works
-# from a wheel install, not only from source.
-[tool.hatch.build.targets.wheel.force-include]
-"src/session_kb/templates" = "session_kb/templates"
-
 [tool.ruff]
 line-length = 100
+
+# Coverage is scoped to the implemented modules (schema + scrub). Stub modules
+# (chunker/embed/index/ingest/search/connectors) raise NotImplementedError and
+# are gated by milestone PRs as they land.
+[tool.pytest.ini_options]
+addopts = "--cov=session_kb.schema --cov=session_kb.scrub --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+# gitleaks/trufflehog are optional external-CLI wrappers: their detection path
+# needs the binary on $PATH (absent in CI), so only the no-op fallback runs here.
+omit = [
+    "src/session_kb/scrub/gitleaks.py",
+    "src/session_kb/scrub/trufflehog.py",
+]

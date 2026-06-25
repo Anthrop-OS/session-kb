@@ -28,6 +28,13 @@ and [docs/SCHEMA.md](docs/SCHEMA.md) for the record contract.
 src/session_kb/
   schema.py            canonical turn + embedding records
   connectors/          per-harness native → canonical mappers
+  scrub/               pluggable secret scrub (magnitude reduction, not boundary)
+    interface.py       ScrubProvider protocol + Finding + tokenize + redact
+    builtin.py         batteries-included: entropy + standard secret patterns
+    gitleaks.py        optional gitleaks CLI wrapper (no-op if not installed)
+    trufflehog.py      optional trufflehog CLI wrapper (no-op if not installed)
+    patterns.py        --extra-patterns YAML loader → ScrubProvider
+    composite.py       union multiple providers (deduplicated by span)
   chunker.py           per-exchange, length-gated
   embed.py             local ONNX all-MiniLM (llm-embed-onnx)
   index.py             sqlite FTS5 + vec build (L2 = f(L1))
@@ -36,6 +43,7 @@ src/session_kb/
   init.py              session-kb-init: scaffold an L1 data repo from template
   templates/data_repo/ canonical skeleton for the private L1 data repo
 docs/SCHEMA.md         the record contract
+docs/EXTRA-PATTERNS.md --extra-patterns integration guide
 tests/                 synthetic fixtures only
 ```
 
