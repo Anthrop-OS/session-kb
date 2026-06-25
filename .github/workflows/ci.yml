@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]" pyyaml
+      - run: pytest -v --tb=short
+
+  content-guard:
+    name: content-free guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject session content artifacts
+        run: |
+          violations=0
+
+          # No jsonl data files (templates are allowed via .gitignore exception)
+          found=$(find . -name '*.jsonl' -not -path './.git/*' | head -5)
+          if [ -n "$found" ]; then
+            echo "::error::JSONL data files found — this repo must be content-free"
+            echo "$found"
+            violations=$((violations + 1))
+          fi
+
+          # No sqlite/db files
+          found=$(find . \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -not -path './.git/*' | head -5)
+          if [ -n "$found" ]; then
+            echo "::error::Database files found — index artifacts must not be committed"
+            echo "$found"
+            violations=$((violations + 1))
+          fi
+
+          # No ONNX model files
+          found=$(find . -name '*.onnx' -not -path './.git/*' | head -5)
+          if [ -n "$found" ]; then
+            echo "::error::ONNX model files found — models are runtime dependencies"
+            echo "$found"
+            violations=$((violations + 1))
+          fi
+
+          # No real secrets in test fixtures (scan for high-entropy patterns in tests/)
+          if grep -rPn '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36,}|-----BEGIN .* PRIVATE KEY-----)' tests/ 2>/dev/null | grep -v 'synthetic\|SYNTH\|EXAMPLE\|fake\|test\|000000' ; then
+            echo "::error::Possible real secrets in test fixtures"
+            violations=$((violations + 1))
+          fi
+
+          if [ "$violations" -gt 0 ]; then
+            echo "::error::$violations content-guard violation(s) found"
+            exit 1
+          fi
+
+          echo "Content-free guard passed"
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - name: Verify wheel contains template
+        run: |
+          whl=$(ls dist/*.whl)
+          python -c "
+          import zipfile, sys
+          with zipfile.ZipFile('$whl') as z:
+              names = z.namelist()
+              templates = [n for n in names if 'templates/data_repo' in n]
+              if not templates:
+                  print('::error::Wheel missing data-repo template')
+                  sys.exit(1)
+              print(f'Template files in wheel: {len(templates)}')
+              for t in templates:
+                  print(f'  {t}')
+          "
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
