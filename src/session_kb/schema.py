@@ -73,6 +73,15 @@ SCHEMA_VERSION = "1"
 Actor = Literal["user", "agent", "tool"]
 EmbedSource = Literal["raw", "summary"]
 
+#: Provenance of a turn's text, orthogonal to ``actor``. ``actor="user"`` conflates
+#: genuine human input with harness-injected envelopes (slash-command wrappers,
+#: interrupt markers, local-command stdout, continuation notices); analytics and
+#: KB consumers must tell them apart. The connector classifies each turn — generic
+#: classes here, harness-specific detection in the connector. ``prompt`` = genuine
+#: human input; ``response`` = agent output; ``tool_result`` = tool output;
+#: ``system`` = harness/client-injected (not authored by human or agent).
+MessageClass = Literal["prompt", "response", "tool_result", "system"]
+
 #: content_hash convention: ``sha256:`` + lowercase hex digest. Encoded in the
 #: JSON Schema (``pattern``) so a non-Python connector validates the same shape.
 CONTENT_HASH_PATTERN = r"^sha256:[0-9a-f]{64}$"
@@ -189,6 +198,10 @@ class TurnRecord(_Record):
     seq: int = Field(description="monotonic per session; the stable record-ordering key")
     exchange_id: str = Field(description="groups messages into one embedding unit (the chunk key)")
     actor: Actor
+    message_class: MessageClass = Field(
+        description="provenance of the text (prompt/response/tool_result/system); "
+        "set by the connector. Analytics filter genuine prompts via message_class='prompt'."
+    )
     message: str = Field(description="scrubbed verbatim text")
     content_hash: str = Field(
         pattern=CONTENT_HASH_PATTERN,

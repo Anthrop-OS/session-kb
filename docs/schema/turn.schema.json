@@ -210,6 +210,17 @@
       "title": "Message",
       "type": "string"
     },
+    "message_class": {
+      "description": "provenance of the text (prompt/response/tool_result/system); set by the connector. Analytics filter genuine prompts via message_class='prompt'.",
+      "enum": [
+        "prompt",
+        "response",
+        "tool_result",
+        "system"
+      ],
+      "title": "Message Class",
+      "type": "string"
+    },
     "output_tokens": {
       "anyOf": [
         {
@@ -332,6 +343,7 @@
     "seq",
     "exchange_id",
     "actor",
+    "message_class",
     "message",
     "content_hash",
     "source",

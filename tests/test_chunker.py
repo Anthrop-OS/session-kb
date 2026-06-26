@@ -20,13 +20,14 @@ def _sha(text):
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _turn(seq, exchange_n, actor, message, *, session=SESSION):
+def _turn(seq, exchange_n, actor, message, *, session=SESSION, message_class="prompt"):
     """Minimal valid TurnRecord for chunker unit tests."""
     return TurnRecord(
         session_id=session,
         seq=seq,
         exchange_id=f"{session}:x{exchange_n}",
         actor=actor,
+        message_class=message_class,
         message=message,
         content_hash=_sha(message),
         source=Source(harness="claude-code", connector_version="0.1.0", provider="anthropic"),

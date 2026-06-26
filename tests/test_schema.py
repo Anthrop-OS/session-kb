@@ -31,6 +31,7 @@ def _turn(**overrides) -> TurnRecord:
         seq=1,
         exchange_id=EXCHANGE,
         actor="user",
+        message_class="prompt",
         message="hello",
         content_hash=HASH,
         source=Source(harness="claude-code", connector_version="0.0.0"),

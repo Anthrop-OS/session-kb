@@ -44,6 +44,21 @@ PROVIDER = "anthropic"
 #: native line types that carry conversation turns; everything else is metadata.
 _TURN_TYPES = frozenset({"user", "assistant"})
 
+#: Claude Code injects non-prompt text into the actor=user stream wrapped in these
+#: markers (slash-command envelopes, local-command stdout/caveats, interrupt and
+#: continuation notices). A user turn whose text starts with one of these — or
+#: that carries ``isMeta`` — is harness ``system`` text, not a human prompt.
+#: NOTE: remote-control heartbeats ("Reply with exactly: OK", "ping") arrive as
+#: bare user text with no marker, so they stay ``prompt`` here and are a job for
+#: an analysis-layer heuristic — the connector only classifies what the harness
+#: structurally marks.
+_SYSTEM_USER_PREFIXES = (
+    "<command-name>",
+    "<local-command-",
+    "[Request interrupted",
+    "This session is being continued",
+)
+
 
 def _content_hash(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -86,6 +101,21 @@ def _is_tool_result(message: dict[str, Any], entry: dict[str, Any]) -> bool:
     return isinstance(content, list) and any(
         isinstance(b, dict) and b.get("type") == "tool_result" for b in content
     )
+
+
+def _message_class(actor: str, text: str, entry: dict[str, Any]) -> str:
+    """Classify a turn's provenance (see schema ``MessageClass``).
+
+    ``actor`` already separates agent/tool; the work here is splitting the
+    user stream into genuine ``prompt`` vs harness-injected ``system`` text.
+    """
+    if actor == "agent":
+        return "response"
+    if actor == "tool":
+        return "tool_result"
+    if entry.get("isMeta") or text.startswith(_SYSTEM_USER_PREFIXES):
+        return "system"
+    return "prompt"
 
 
 def _tool_call_id(message: dict[str, Any]) -> str | None:
@@ -161,6 +191,7 @@ def iter_turns(path: Path, *, connector_version: str = CONNECTOR_VERSION) -> Ite
             seq=seq,
             exchange_id=f"{session_id}:x{exchange_n}",
             actor=actor,
+            message_class=_message_class(actor, text, entry),
             message=text,
             content_hash=_content_hash(text),
             source=Source(
