@@ -78,6 +78,7 @@ verbatim (never a summary) so full-text recall never degrades on long exchanges.
   "seq": 42,                       // monotonic per session; stable ordering key
   "exchange_id": "synthetic-session:x7",  // groups messages into one embed unit
   "actor": "user|agent|tool",
+  "message_class": "prompt|response|tool_result|system",  // provenance; filter genuine prompts
   "message": "...scrubbed verbatim...",
   "content_hash": "sha256:...",    // of the scrubbed message; re-derive/idempotency anchor
   "source": { "harness": "claude-code", "provider": "anthropic",
@@ -166,6 +167,13 @@ block. It carries native fidelity not yet common across harnesses (Claude Code:
 
 - `actor=tool` isolates tool output (where secrets and noise concentrate) so it
   can be scrubbed differently — agnostically, without harness branching.
+- `message_class` is orthogonal to `actor`: `actor=user` conflates genuine human
+  prompts with harness-injected text (slash-command envelopes, interrupt markers,
+  local-command stdout, continuation notices). Analytics select genuine prompts
+  via `message_class='prompt'`; without it, duplicate-prompt and skill-ROI metrics
+  are dominated by system noise. The connector does the harness-specific detection;
+  the enum stays generic. Bare remote-control heartbeats carry no structural marker,
+  so they remain `prompt` here and are an analysis-layer concern.
 - `message_type` of old (`raw|summary`) moved off the per-message record onto the
   per-exchange `ChunkRecord.embed_source`, since the raw-vs-summary decision is a
   property of the exchange (the embedding unit), not of any single message.

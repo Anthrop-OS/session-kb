@@ -111,6 +111,38 @@ def test_records_are_valid_turn_records(transcript):
     assert all(isinstance(t, TurnRecord) for t in turns)
 
 
+def test_message_class_tracks_actor(transcript):
+    # user / agent / tool / agent / user → prompt / response / tool_result / response / prompt
+    turns = list(cc.iter_turns(transcript))
+    assert [t.message_class for t in turns] == [
+        "prompt",
+        "response",
+        "tool_result",
+        "response",
+        "prompt",
+    ]
+
+
+def test_harness_envelopes_classify_as_system(tmp_path):
+    entries = [
+        _user("u1", "<command-name>/model</command-name> set opus", "2026-01-01T00:00:00Z"),
+        _user("u2", "[Request interrupted by user]", "2026-01-01T00:00:01Z", parent="u1"),
+        _user("u3", "real question here", "2026-01-01T00:00:02Z", parent="u2"),
+        {  # isMeta lines are harness bookkeeping, not a human prompt
+            "type": "user",
+            "uuid": "u4",
+            "parentUuid": "u3",
+            "sessionId": SESSION,
+            "timestamp": "2026-01-01T00:00:03Z",
+            "isMeta": True,
+            "message": {"role": "user", "content": "caveat about local command output"},
+        },
+    ]
+    path = _write(tmp_path, entries)
+    classes = [t.message_class for t in cc.iter_turns(path)]
+    assert classes == ["system", "system", "prompt", "system"]
+
+
 def test_tool_use_becomes_typed_tool_calls(transcript):
     agent = list(cc.iter_turns(transcript))[1]
     assert agent.actor == "agent"
