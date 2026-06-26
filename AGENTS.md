@@ -64,6 +64,32 @@ repo itself never holds tool code; this repo never holds session content.
 
 ```sh
 pip install -e ".[dev]"
-ruff check .
-pytest
+ruff check . && ruff format --check .
+python scripts/gen_schema.py        # regenerate JSON Schema after ANY schema.py change
+pytest                              # includes the schema drift-guard + coverage gate (≥90%)
 ```
+
+If you touch `schema.py`, you **must** run `gen_schema.py` and commit the updated
+`docs/schema/*.json` — a CI drift-guard test fails otherwise. Run all four steps
+locally before pushing; they mirror CI exactly (lint / test matrix / content-free
+guard / build), so a green local run means a green PR.
+
+## Milestone PR workflow & traps
+
+The pipeline lands one milestone per PR (stub → implementation, stable signature).
+Two traps cost a round-trip if you don't know them up front:
+
+1. **No committed `*.jsonl` — ever.** The content-free guard `find`s and rejects
+   any committed jsonl (even synthetic). Connector / ingest fixtures must be
+   written to a `tmp_path` at test runtime, never checked in. See
+   `tests/test_connector_claude_code.py` for the pattern.
+2. **GitHub push protection blocks provider-shaped synthetic secrets.** A fixture
+   secret shaped like a real partner token (Slack `xox…`, AWS `AKIA…`, GitHub
+   `ghp_…`) trips push protection and the push is *rejected* — do **not** click the
+   unblock URL. Instead use a shape the builtin scrub catches but no provider
+   claims: the **generic-api-key** rule (`token_` + 32+ chars). See
+   `tests/test_ingest.py::SECRET`.
+
+Verify a merged milestone end-to-end from a *clean* install (`pip install .`, run
+the console entrypoint against a synthetic transcript), not just via `pytest` —
+this catches packaging / entrypoint regressions the test suite can miss.
