@@ -32,10 +32,10 @@ packages = ["src/session_kb"]
 line-length = 100
 
 # Coverage is scoped to the implemented modules (schema + scrub + the Claude Code
-# connector + ingest spine). The remaining stub modules (chunker/embed/index/
+# connector + ingest spine + chunker). The remaining stub modules (embed/index/
 # search) raise NotImplementedError and are gated by milestone PRs as they land.
 [tool.pytest.ini_options]
-addopts = "--cov=session_kb.schema --cov=session_kb.scrub --cov=session_kb.connectors.claude_code --cov=session_kb.ingest --cov-report=term-missing --cov-fail-under=90"
+addopts = "--cov=session_kb.schema --cov=session_kb.scrub --cov=session_kb.connectors.claude_code --cov=session_kb.ingest --cov=session_kb.chunker --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
 # gitleaks/trufflehog are optional external-CLI wrappers: their detection path
